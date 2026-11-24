@@ -1,0 +1,10 @@
+node_modules/
+.env
+dist/
+.DS_Store
+
+# Keep secrets and temporary files private
+.env*
+!.env.example
+*/.env.example
+.swp
