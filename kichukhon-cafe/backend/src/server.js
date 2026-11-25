@@ -10,7 +10,7 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({
-  origin: 'https://literate-space-lamp-4qr4w7qv7xp6hqv6v-5173.app.github.dev',
+  origin: ['https://literate-space-lamp-4qr4w7qv7xp6hqv6v-5173.app.github.dev', 'https://kichukhon-cafe-fronted.onrender.com'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
