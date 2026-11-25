@@ -72,7 +72,7 @@ router.get('/cart',auth,asyncRoute(async(req,res)=>{
  res.json({items:rows,total:money(rows.reduce((s,x)=>s+Number(x.line_total),0))});
 }));
 router.post('/cart/items',auth,asyncRoute(async(req,res)=>{
- const d=z.object({food_id:z.number().int(),quantity:z.number().int().min(1).max(50).default(1)}).parse(req.body);
+ const d=z.object({food_id:z.coerce.number().int(),quantity:z.number().int().min(1).max(50).default(1)}).parse(req.body);
  const c=await pool.query('INSERT INTO carts(user_id) VALUES($1) ON CONFLICT(user_id) DO UPDATE SET updated_at=NOW() RETURNING id',[req.user.id]);
  const f=await pool.query('SELECT id FROM foods WHERE id=$1 AND is_available=true',[d.food_id]);if(!f.rows[0])return res.status(404).json({message:'Food unavailable'});
  await pool.query(`INSERT INTO cart_items(cart_id,food_id,quantity) VALUES($1,$2,$3)
@@ -123,7 +123,7 @@ router.post('/orders',auth,asyncRoute(async(req,res)=>{
   }
   const fee=60,total=money(subtotal-discount+fee);
   const status='Pending';
-  const o=await client.query(`INSERT INTO ordersu(user_id,address_id,subtotal,discount,delivery_fee,total,coupon_code,payment_method,payment_status,delivery_notes)
+  const o=await client.query(`INSERT INTO orders(user_id,address_id,subtotal,discount,delivery_fee,total,coupon_code,payment_method,payment_status,delivery_notes)
   VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Pending',$9) RETURNING *`,
   [req.user.id,d.address_id,subtotal,discount,fee,total,coupon?.code||null,d.payment_method,d.delivery_notes||null]);
   for(const item of cart.rows)await client.query(`INSERT INTO order_items(order_id,food_id,food_name,unit_price,quantity,line_total)
@@ -135,24 +135,24 @@ router.post('/orders',auth,asyncRoute(async(req,res)=>{
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }));
 router.get('/orders/mine',auth,asyncRoute(async(req,res)=>{
- const {rows}=await pool.query('SELECT * FROM ordersu WHERE user_id=$1 ORDER BY created_at DESC',[req.user.id]);res.json({orders:rows});
+ const {rows}=await pool.query('SELECT * FROM orders WHERE user_id=$1 ORDER BY created_at DESC',[req.user.id]);res.json({orders:rows});
 }));
 router.get('/orders/:id',auth,asyncRoute(async(req,res)=>{
- const q=await pool.query('SELECT * FROM ordersu WHERE id=$1 AND ($2::bigint IS NULL OR user_id=$2)',[req.params.id,req.user.role==='admin'?null:req.user.id]);
+ const q=await pool.query('SELECT * FROM orders WHERE id=$1 AND ($2::bigint IS NULL OR user_id=$2)',[req.params.id,req.user.role==='admin'?null:req.user.id]);
  if(!q.rows[0])return res.status(404).json({message:'Order not found'});
  const items=await pool.query('SELECT * FROM order_items WHERE order_id=$1',[req.params.id]);res.json({order:q.rows[0],items:items.rows});
 }));
-router.get('/admin/orders',auth,adminOnly,asyncRoute(async(req,res)=>{const {rows}=await pool.query('SELECT o.*,u.name customer_name,u.phone FROM ordersu o JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC');res.json({orders:rows});}));
+router.get('/admin/orders',auth,adminOnly,asyncRoute(async(req,res)=>{const {rows}=await pool.query('SELECT o.*,u.name customer_name,u.phone FROM orders o JOIN users u ON u.id=o.user_id ORDER BY o.created_at DESC');res.json({orders:rows});}));
 router.patch('/admin/orders/:id/status',auth,adminOnly,asyncRoute(async(req,res)=>{
  const allowed=['Pending','Confirmed','Preparing','Ready for Pickup','Out for Delivery','Delivered','Cancelled'];
  const status=z.enum(allowed).parse(req.body.status);
- const {rows}=await pool.query('UPDATE ordersu SET status=$1,updated_at=NOW() WHERE id=$2 RETURNING *',[status,req.params.id]);
+ const {rows}=await pool.query('UPDATE orders SET status=$1,updated_at=NOW() WHERE id=$2 RETURNING *',[status,req.params.id]);
  if(!rows[0])return res.status(404).json({message:'Order not found'});res.json({order:rows[0]});
 }));
 router.get('/admin/overview',auth,adminOnly,asyncRoute(async(req,res)=>{
  const q=await pool.query(`SELECT (SELECT COUNT(*) FROM users WHERE role='customer') users,
  (SELECT COUNT(*) FROM restaurants) restaurants,(SELECT COUNT(*) FROM foods) foods,
- (SELECT COUNT(*) FROM ordersu) orders,(SELECT COALESCE(SUM(total),0) FROM ordersu WHERE payment_status='Paid' OR payment_method='COD' AND status='Delivered') revenue`);
+ (SELECT COUNT(*) FROM orders) orders,(SELECT COALESCE(SUM(total),0) FROM orders WHERE payment_status='Paid' OR payment_method='COD' AND status='Delivered') revenue`);
  res.json({overview:q.rows[0]});
 }));
 router.get('/admin/customers',auth,adminOnly,asyncRoute(async(req,res)=>{const {rows}=await pool.query("SELECT id,name,email,phone,is_active,created_at FROM users WHERE role='customer' ORDER BY created_at DESC");res.json({customers:rows});}));
@@ -162,7 +162,7 @@ router.post('/admin/coupons',auth,adminOnly,asyncRoute(async(req,res)=>{
  VALUES(upper($1),$2,$3,$4,$5,$6,$7) RETURNING *`,[d.code,d.discount_type,d.discount_value,d.min_order||0,d.max_discount||null,d.usage_limit||null,d.expires_at||null]);res.status(201).json({coupon:rows[0]});
 }));
 router.post('/reviews',auth,asyncRoute(async(req,res)=>{
- const d=z.object({food_id:z.number().int(),rating:z.number().int().min(1).max(5),comment:z.string().max(1000).optional(),order_id:z.number().int().optional()}).parse(req.body);
+ const d=z.object({food_id:z.coerce.number().int(),rating:z.number().int().min(1).max(5),comment:z.string().max(1000).optional(),order_id:z.number().int().optional()}).parse(req.body);
  const {rows}=await pool.query(`INSERT INTO reviews(user_id,food_id,rating,comment,order_id)
  VALUES($1,$2,$3,$4,$5) RETURNING *`,[req.user.id,d.food_id,d.rating,d.comment||null,d.order_id||null]);res.status(201).json({review:rows[0]});
 }));
@@ -171,7 +171,7 @@ router.get('/favorites',auth,asyncRoute(async(req,res)=>{const {rows}=await pool
 router.post('/favorites/:foodId',auth,asyncRoute(async(req,res)=>{await pool.query('INSERT INTO favorites(user_id,food_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,req.params.foodId]);res.json({message:'Added to favorites'});}));
 router.delete('/favorites/:foodId',auth,asyncRoute(async(req,res)=>{await pool.query('DELETE FROM favorites WHERE user_id=$1 AND food_id=$2',[req.user.id,req.params.foodId]);res.json({message:'Removed from favorites'});}));
 router.post('/payments/:orderId/initialize',auth,asyncRoute(async(req,res)=>{
- const {rows}=await pool.query('SELECT * FROM ordersu WHERE id=$1 AND user_id=$2',[req.params.orderId,req.user.id]);
+ const {rows}=await pool.query('SELECT * FROM orders WHERE id=$1 AND user_id=$2',[req.params.orderId,req.user.id]);
  if(!rows[0])return res.status(404).json({message:'Order not found'});
  if(rows[0].payment_method==='COD')return res.status(400).json({message:'Cash on Delivery does not require gateway initialization'});
  return res.status(501).json({message:'Online payment is not enabled. Configure official merchant credentials and implement verified provider callbacks before enabling this endpoint.'});

@@ -9,7 +9,11 @@ import { notFound, errorHandler } from './middleware/errors.js';
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: 'https://literate-space-lamp-4qr4w7qv7xp6hqv6v-5173.app.github.dev',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '1mb' }));
 
 app.use('/api', rateLimit({

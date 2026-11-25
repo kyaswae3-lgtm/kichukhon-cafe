@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS coupons (
  min_order NUMERIC(10,2) DEFAULT 0, max_discount NUMERIC(10,2), usage_limit INT,
  used_count INT DEFAULT 0, expires_at TIMESTAMPTZ, is_active BOOLEAN DEFAULT TRUE
 );
-CREATE TABLE IF NOT EXISTS ordersu (
+CREATE TABLE IF NOT EXISTS orders (
  id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id),
  address_id BIGINT REFERENCES addresses(id) ON DELETE SET NULL,
  status VARCHAR(30) NOT NULL DEFAULT 'Pending' CHECK(status IN
@@ -59,23 +59,23 @@ CREATE TABLE IF NOT EXISTS ordersu (
  CHECK(payment_status IN ('Pending','Paid','Failed','Refunded')),
  delivery_notes TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS orders_user_idx ON ordersu(user_id,created_at DESC);
-CREATE INDEX IF NOT EXISTS orders_status_idx ON ordersu(status);
+CREATE INDEX IF NOT EXISTS orders_user_idx ON orders(user_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS orders_status_idx ON orders(status);
 CREATE TABLE IF NOT EXISTS order_items (
- id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL REFERENCES ordersu(id) ON DELETE CASCADE,
+ id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
  food_id BIGINT REFERENCES foods(id) ON DELETE SET NULL, food_name VARCHAR(180) NOT NULL,
  unit_price NUMERIC(10,2) NOT NULL, quantity INT NOT NULL CHECK(quantity > 0),
  line_total NUMERIC(10,2) NOT NULL
 );
 CREATE TABLE IF NOT EXISTS payments (
- id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL REFERENCES ordersu(id) ON DELETE CASCADE,
+ id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
  provider VARCHAR(30) NOT NULL, provider_transaction_id VARCHAR(180),
  amount NUMERIC(10,2) NOT NULL, status VARCHAR(20) NOT NULL DEFAULT 'Pending',
  raw_reference TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS reviews (
  id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- food_id BIGINT NOT NULL REFERENCES foods(id) ON DELETE CASCADE, order_id BIGINT REFERENCES ordersu(id),
+ food_id BIGINT NOT NULL REFERENCES foods(id) ON DELETE CASCADE, order_id BIGINT REFERENCES orders(id),
  rating INT NOT NULL CHECK(rating BETWEEN 1 AND 5), comment TEXT,
  created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id,food_id,order_id)
 );
